@@ -132,7 +132,7 @@ async function checkStatuses(hosts, runId) {
       const card = resultsGrid.querySelector(`[data-host="${CSS.escape(host)}"]`);
       if (!card) continue;
 
-      setCardStatus(card, 'pending', '확인 중');
+      setCardStatus(card, 'pending', '홈페이지 확인 중');
 
       try {
         const response = await fetch(`/api/status?host=${encodeURIComponent(host)}`, {
@@ -148,9 +148,15 @@ async function checkStatuses(hosts, runId) {
           continue;
         }
 
-        if (payload.status === 'online') {
-          const detail = payload.httpStatus ? `${payload.httpStatus} · ${payload.ms ?? '-'}ms` : '연결 가능';
+        if (payload.status === 'website') {
+          const detail = payload.httpStatus ? `홈페이지 · ${payload.httpStatus} · ${payload.ms ?? '-'}ms` : '홈페이지 확인';
           setCardStatus(card, 'online', detail);
+        } else if (payload.status === 'not_website') {
+          let detail = '홈페이지 없음';
+          if (payload.reason === 'not_html') detail = '웹페이지 아님';
+          else if (payload.reason === 'invalid_html') detail = 'HTML 페이지 아님';
+          else if (String(payload.reason || '').startsWith('http_')) detail = `HTTP ${payload.httpStatus || ''}`.trim();
+          setCardStatus(card, 'offline', detail);
         } else if (payload.status === 'offline') {
           setCardStatus(card, 'offline', payload.reason === 'timeout' ? '시간 초과' : '연결 실패');
         } else {
