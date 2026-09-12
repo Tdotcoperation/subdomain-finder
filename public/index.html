@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#090909" />
+  <title>Subdomain Finder</title>
+  <meta name="description" content="도메인의 공개 서브도메인을 빠르게 찾아보세요." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+  <div class="noise"></div>
+
+  <main class="shell">
+    <section class="hero" id="hero">
+      <div class="eyebrow">SUBDOMAIN FINDER</div>
+      <h1>Find what lives<br /><span>under a domain.</span></h1>
+      <p class="lead">공개 인덱스에서 서브도메인을 찾아 한눈에 보여줍니다.</p>
+
+      <form class="search-wrap" id="searchForm" autocomplete="off">
+        <div class="search-box" id="searchBox">
+          <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z" /></svg>
+          <input id="domainInput" type="text" inputmode="url" spellcheck="false" placeholder="example.com" aria-label="도메인 입력" />
+          <button type="submit" id="searchButton" aria-label="검색">
+            <span>Search</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5" /></svg>
+          </button>
+        </div>
+        <div class="hint">apex domain을 입력하세요 · 예: imtdot.kr</div>
+      </form>
+    </section>
+
+    <section class="results-section" id="resultsSection" aria-live="polite">
+      <div class="results-head">
+        <div>
+          <p class="results-label">RESULTS</p>
+          <h2 id="resultsTitle">Subdomains</h2>
+        </div>
+        <span class="count" id="resultCount"></span>
+      </div>
+
+      <div class="status-card hidden" id="statusCard"></div>
+      <div class="results-grid" id="resultsGrid"></div>
+    </section>
+  </main>
+
+  <footer>Data source: crt.name public API</footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
