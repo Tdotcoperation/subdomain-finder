@@ -2,13 +2,8 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    if (url.pathname === '/api/search') {
-      return handleSearch(url);
-    }
-
-    if (url.pathname === '/api/status') {
-      return handleStatus(url);
-    }
+    if (url.pathname === '/api/search') return handleSearch(url);
+    if (url.pathname === '/api/status') return handleStatus(url);
 
     return env.ASSETS.fetch(request);
   }
@@ -16,23 +11,16 @@ export default {
 
 async function handleSearch(url) {
   const apex = (url.searchParams.get('apex') || '').trim().toLowerCase();
-
-  if (!isValidHostname(apex)) {
-    return json({ error: '올바른 도메인을 입력해주세요.' }, 400);
-  }
+  if (!isValidHostname(apex)) return json({ error: '올바른 도메인을 입력해주세요.' }, 400);
 
   const upstream = new URL('https://crt.name/v1/search');
   upstream.searchParams.set('apex', apex);
 
   try {
     const response = await fetch(upstream.toString(), {
-      headers: {
-        Accept: 'text/plain',
-        'User-Agent': 'subdomain-finder/1.2'
-      },
+      headers: { Accept: 'text/plain', 'User-Agent': 'subdomain-finder/1.3' },
       cf: { cacheTtl: 300, cacheEverything: true }
     });
-
     const text = await response.text();
 
     if (!response.ok) {
@@ -43,8 +31,7 @@ async function handleSearch(url) {
     }
 
     const subdomains = [...new Set(
-      text
-        .split(/\r?\n/)
+      text.split(/\r?\n/)
         .map(v => v.trim().toLowerCase().replace(/^\*\./, ''))
         .filter(Boolean)
         .filter(name => name === apex || name.endsWith(`.${apex}`))
@@ -60,48 +47,55 @@ async function handleSearch(url) {
 
 async function handleStatus(url) {
   const host = (url.searchParams.get('host') || '').trim().toLowerCase();
-
-  if (!isValidHostname(host)) {
-    return json({ error: '올바른 호스트가 아닙니다.', status: 'worker_error' }, 400);
-  }
+  if (!isValidHostname(host)) return json({ error: '올바른 호스트가 아닙니다.', status: 'worker_error' }, 400);
 
   const started = Date.now();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort('timeout'), 7000);
+  const timeout = setTimeout(() => controller.abort(), 7000);
 
   try {
     const response = await fetch(`https://${host}/`, {
       method: 'GET',
-      redirect: 'manual',
+      redirect: 'follow',
       signal: controller.signal,
-      headers: {
-        'User-Agent': 'subdomain-finder-status/1.0',
-        Accept: 'text/html,application/xhtml+xml,*/*;q=0.8'
-      }
+      headers: { Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5' }
     });
 
+    const contentType = (response.headers.get('content-type') || '').toLowerCase();
+    const isHtml = contentType.includes('text/html') || contentType.includes('application/xhtml+xml');
+    let looksLikePage = false;
+
+    if (response.ok && isHtml) {
+      const body = (await response.text()).slice(0, 65536).toLowerCase();
+      looksLikePage = body.length >= 80 && /<!doctype\s+html|<html|<head|<body|<title|<main|<div|<script/.test(body);
+    }
+
     clearTimeout(timeout);
+
+    if (response.ok && isHtml && looksLikePage) {
+      return json({
+        host,
+        status: 'website',
+        httpStatus: response.status,
+        ms: Date.now() - started
+      }, 200, { 'Cache-Control': 'public, max-age=120' });
+    }
 
     return json({
       host,
-      status: 'online',
+      status: 'not_website',
       httpStatus: response.status,
+      reason: !response.ok ? `http_${response.status}` : !isHtml ? 'not_html' : 'invalid_html',
       ms: Date.now() - started
-    }, 200, {
-      'Cache-Control': 'public, max-age=120'
-    });
-  } catch (error) {
+    }, 200, { 'Cache-Control': 'public, max-age=60' });
+  } catch {
     clearTimeout(timeout);
-
-    const timedOut = controller.signal.aborted;
     return json({
       host,
       status: 'offline',
-      reason: timedOut ? 'timeout' : 'connection_failed',
+      reason: controller.signal.aborted ? 'timeout' : 'connection_failed',
       ms: Date.now() - started
-    }, 200, {
-      'Cache-Control': 'public, max-age=60'
-    });
+    }, 200, { 'Cache-Control': 'public, max-age=60' });
   }
 }
 
