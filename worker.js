@@ -11,13 +11,12 @@ export default {
 
       const upstream = new URL('https://crt.name/v1/search');
       upstream.searchParams.set('apex', apex);
-      upstream.searchParams.set('format', 'json');
 
       try {
         const response = await fetch(upstream.toString(), {
           headers: {
-            'Accept': 'application/json',
-            'User-Agent': 'subdomain-finder/1.0'
+            'Accept': 'text/plain',
+            'User-Agent': 'subdomain-finder/1.1'
           },
           cf: { cacheTtl: 300, cacheEverything: true }
         });
@@ -31,14 +30,19 @@ export default {
           return json({ error: message }, response.status);
         }
 
-        let payload;
-        try {
-          payload = JSON.parse(text);
-        } catch {
-          payload = text.split(/\r?\n/).map(v => v.trim()).filter(Boolean);
-        }
+        const subdomains = [...new Set(
+          text
+            .split(/\r?\n/)
+            .map(v => v.trim().toLowerCase().replace(/^\*\./, ''))
+            .filter(Boolean)
+            .filter(name => name === apex || name.endsWith(`.${apex}`))
+        )];
 
-        return json(payload, 200, {
+        return json({
+          apex,
+          count: subdomains.length,
+          subdomains
+        }, 200, {
           'Cache-Control': 'public, max-age=300'
         });
       } catch (error) {
