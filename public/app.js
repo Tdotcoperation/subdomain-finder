@@ -9,7 +9,12 @@ const resultsTitle = document.getElementById('resultsTitle');
 const statusCard = document.getElementById('statusCard');
 
 let statusRun = 0;
-const STATUS_CONCURRENCY = 8;
+let allResults = [];
+let renderedCount = 0;
+let loadMoreButton = null;
+const cardMap = new Map();
+const STATUS_CONCURRENCY = 4;
+const PAGE_SIZE = 100;
 
 function normalizeDomain(value) {
   return value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].replace(/\.$/, '');
@@ -26,6 +31,8 @@ function showSection() {
 
 function showStatus(message) {
   resultsGrid.innerHTML = '';
+  removeLoadMore();
+  cardMap.clear();
   resultCount.textContent = '';
   statusCard.textContent = message;
   statusCard.classList.remove('hidden');
@@ -45,7 +52,7 @@ function setLoading(loading) {
 
 function extractNames(payload) {
   const found = new Set();
-  const add = (value) => {
+  const add = value => {
     if (typeof value !== 'string') return;
     const name = value.trim().toLowerCase().replace(/^\*\./, '');
     if (name && !name.includes(' ')) found.add(name);
@@ -74,11 +81,14 @@ function extractNames(payload) {
 }
 
 function renderResults(domain, names) {
+  statusRun++;
   clearStatus();
   resultsGrid.innerHTML = '';
+  removeLoadMore();
+  cardMap.clear();
   resultsTitle.textContent = domain;
 
-  const filtered = names
+  allResults = names
     .filter(name => name === domain || name.endsWith(`.${domain}`))
     .sort((a, b) => {
       if (a === domain) return -1;
@@ -86,24 +96,38 @@ function renderResults(domain, names) {
       return a.localeCompare(b);
     });
 
-  resultCount.textContent = `${filtered.length.toLocaleString()} found`;
+  renderedCount = 0;
+  resultCount.textContent = `${allResults.length.toLocaleString()} found`;
   showSection();
 
-  if (!filtered.length) {
+  if (!allResults.length) {
     showStatus('찾은 서브도메인이 없습니다.');
     return;
   }
 
+  renderNextBatch();
+  requestAnimationFrame(() => resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+}
+
+function renderNextBatch() {
+  if (renderedCount >= allResults.length) {
+    removeLoadMore();
+    return;
+  }
+
+  const start = renderedCount;
+  const end = Math.min(start + PAGE_SIZE, allResults.length);
+  const batch = allResults.slice(start, end);
   const fragment = document.createDocumentFragment();
 
-  filtered.forEach((name, index) => {
+  batch.forEach((name, index) => {
     const card = document.createElement('a');
     card.className = 'result-card';
     card.href = `https://${name}`;
     card.target = '_blank';
     card.rel = 'noopener noreferrer';
     card.dataset.host = name;
-    card.style.animationDelay = `${Math.min(index * 24, 480)}ms`;
+    card.style.animationDelay = `${Math.min(index * 10, 180)}ms`;
     card.innerHTML = `
       <span class="result-main">
         <span class="status-dot pending" aria-label="확인 대기"></span>
@@ -113,14 +137,36 @@ function renderResults(domain, names) {
         <span class="status-text">대기 중</span>
         <svg class="open-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 16 16 8m-6 0h6v6" /><path d="M16 13v5H6V8h5" /></svg>
       </span>`;
+    cardMap.set(name, card);
     fragment.appendChild(card);
   });
 
   resultsGrid.appendChild(fragment);
-  requestAnimationFrame(() => resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  renderedCount = end;
+  updateLoadMore();
 
-  const runId = ++statusRun;
-  checkStatuses(filtered, runId);
+  const runId = statusRun;
+  checkStatuses(batch, runId);
+}
+
+function updateLoadMore() {
+  removeLoadMore();
+  if (renderedCount >= allResults.length) return;
+
+  const remaining = allResults.length - renderedCount;
+  loadMoreButton = document.createElement('button');
+  loadMoreButton.type = 'button';
+  loadMoreButton.className = 'load-more';
+  loadMoreButton.innerHTML = `<span>더보기</span><small>${remaining.toLocaleString()}개 남음</small>`;
+  loadMoreButton.addEventListener('click', renderNextBatch, { once: true });
+  resultsGrid.insertAdjacentElement('afterend', loadMoreButton);
+}
+
+function removeLoadMore() {
+  if (loadMoreButton) {
+    loadMoreButton.remove();
+    loadMoreButton = null;
+  }
 }
 
 async function checkStatuses(hosts, runId) {
@@ -129,8 +175,8 @@ async function checkStatuses(hosts, runId) {
   async function worker() {
     while (cursor < hosts.length && runId === statusRun) {
       const host = hosts[cursor++];
-      const card = resultsGrid.querySelector(`[data-host="${CSS.escape(host)}"]`);
-      if (!card) continue;
+      const card = cardMap.get(host);
+      if (!card || !card.isConnected) continue;
 
       setCardStatus(card, 'pending', '홈페이지 확인 중');
 
@@ -166,6 +212,8 @@ async function checkStatuses(hosts, runId) {
         if (runId !== statusRun) return;
         setCardStatus(card, 'worker-error', 'Workers 오류');
       }
+
+      await new Promise(resolve => setTimeout(resolve, 30));
     }
   }
 
@@ -175,6 +223,7 @@ async function checkStatuses(hosts, runId) {
 function setCardStatus(card, state, label) {
   const dot = card.querySelector('.status-dot');
   const text = card.querySelector('.status-text');
+  if (!dot || !text) return;
   dot.className = `status-dot ${state}`;
   dot.setAttribute('aria-label', label);
   text.textContent = label;
@@ -188,6 +237,7 @@ async function search(domain) {
   statusRun++;
   setLoading(true);
   clearStatus();
+  removeLoadMore();
 
   try {
     const response = await fetch(`/api/search?apex=${encodeURIComponent(domain)}`, {
