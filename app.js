@@ -9,13 +9,7 @@ const resultsTitle = document.getElementById('resultsTitle');
 const statusCard = document.getElementById('statusCard');
 
 function normalizeDomain(value) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/^https?:\/\//, '')
-    .replace(/^www\./, '')
-    .split('/')[0]
-    .replace(/\.$/, '');
+  return value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].replace(/\.$/, '');
 }
 
 function isLikelyDomain(value) {
@@ -48,7 +42,6 @@ function setLoading(loading) {
 
 function extractNames(payload) {
   const found = new Set();
-
   const add = (value) => {
     if (typeof value !== 'string') return;
     const name = value.trim().toLowerCase().replace(/^\*\./, '');
@@ -59,26 +52,19 @@ function extractNames(payload) {
     for (const item of payload) {
       if (typeof item === 'string') add(item);
       else if (item && typeof item === 'object') {
-        add(item.subdomain);
-        add(item.name);
-        add(item.hostname);
-        add(item.domain);
+        add(item.subdomain); add(item.name); add(item.hostname); add(item.domain);
       }
     }
   } else if (payload && typeof payload === 'object') {
     const collections = [payload.results, payload.subdomains, payload.data, payload.names];
     collections.forEach((collection) => {
-      if (Array.isArray(collection)) {
-        collection.forEach((item) => {
-          if (typeof item === 'string') add(item);
-          else if (item && typeof item === 'object') {
-            add(item.subdomain);
-            add(item.name);
-            add(item.hostname);
-            add(item.domain);
-          }
-        });
-      }
+      if (!Array.isArray(collection)) return;
+      collection.forEach((item) => {
+        if (typeof item === 'string') add(item);
+        else if (item && typeof item === 'object') {
+          add(item.subdomain); add(item.name); add(item.hostname); add(item.domain);
+        }
+      });
     });
   }
 
@@ -107,7 +93,6 @@ function renderResults(domain, names) {
   }
 
   const fragment = document.createDocumentFragment();
-
   filtered.forEach((name, index) => {
     const card = document.createElement('a');
     card.className = 'result-card';
@@ -115,31 +100,16 @@ function renderResults(domain, names) {
     card.target = '_blank';
     card.rel = 'noopener noreferrer';
     card.style.animationDelay = `${Math.min(index * 24, 480)}ms`;
-    card.innerHTML = `
-      <span class="domain-name">${escapeHtml(name)}</span>
-      <svg class="open-icon" viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M8 16 16 8m-6 0h6v6" />
-        <path d="M16 13v5H6V8h5" />
-      </svg>
-    `;
+    card.innerHTML = `<span class="domain-name">${escapeHtml(name)}</span><svg class="open-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 16 16 8m-6 0h6v6" /><path d="M16 13v5H6V8h5" /></svg>`;
     fragment.appendChild(card);
   });
-
   resultsGrid.appendChild(fragment);
 
-  requestAnimationFrame(() => {
-    resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
+  requestAnimationFrame(() => resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' }));
 }
 
 function escapeHtml(value) {
-  return value.replace(/[&<>'"]/g, (char) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    "'": '&#039;',
-    '"': '&quot;'
-  }[char]));
+  return value.replace(/[&<>'"]/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
 }
 
 async function search(domain) {
@@ -147,30 +117,18 @@ async function search(domain) {
   clearStatus();
 
   try {
-    const endpoint = `https://crt.name/v1/search?apex=${encodeURIComponent(domain)}&format=json`;
-    const response = await fetch(endpoint, {
+    const response = await fetch(`/api/search?apex=${encodeURIComponent(domain)}`, {
       headers: { Accept: 'application/json' }
     });
 
+    let payload = null;
+    try { payload = await response.json(); } catch {}
+
     if (!response.ok) {
-      if (response.status === 429) {
-        throw new Error('crt.name 무료 API의 요청 한도에 도달했습니다. 잠시 후 다시 시도해주세요.');
-      }
-      throw new Error(`검색 요청에 실패했습니다. (${response.status})`);
+      throw new Error(payload?.error || `검색 요청에 실패했습니다. (${response.status})`);
     }
 
-    const text = await response.text();
-    let names = [];
-
-    try {
-      names = extractNames(JSON.parse(text));
-    } catch {
-      names = text
-        .split(/\r?\n/)
-        .map((line) => line.trim().replace(/^\*\./, ''))
-        .filter(Boolean);
-    }
-
+    const names = extractNames(payload);
     renderResults(domain, [...new Set(names)]);
   } catch (error) {
     resultsTitle.textContent = domain;
