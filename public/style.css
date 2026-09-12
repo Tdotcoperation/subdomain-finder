@@ -190,11 +190,7 @@ input::placeholder { color: rgba(255,255,255,.25); }
   color: rgba(255,255,255,.3);
 }
 h2 { margin: 0; font-size: 26px; letter-spacing: -.035em; font-weight: 600; }
-.count {
-  color: var(--muted);
-  font-size: 13px;
-  padding-bottom: 4px;
-}
+.count { color: var(--muted); font-size: 13px; padding-bottom: 4px; }
 .results-grid { display: grid; grid-template-columns: 1fr; gap: 9px; }
 .result-card {
   opacity: 0;
@@ -202,6 +198,7 @@ h2 { margin: 0; font-size: 26px; letter-spacing: -.035em; font-weight: 600; }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 18px;
   min-height: 64px;
   padding: 0 19px 0 21px;
   border: 1px solid rgba(255,255,255,.07);
@@ -219,11 +216,48 @@ h2 { margin: 0; font-size: 26px; letter-spacing: -.035em; font-weight: 600; }
   border-color: rgba(255,255,255,.16);
   background: rgba(255,255,255,.065);
 }
+.result-main, .result-side { display: flex; align-items: center; min-width: 0; }
+.result-main { gap: 12px; flex: 1; }
+.result-side { gap: 12px; flex: 0 0 auto; }
 .domain-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 14px; }
+.status-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #7d8795;
+  box-shadow: 0 0 0 4px rgba(125,135,149,.08);
+  transition: background .3s, box-shadow .3s, transform .3s;
+}
+.status-dot.pending {
+  background: #7d8795;
+  box-shadow: 0 0 0 4px rgba(125,135,149,.08);
+  animation: statusPulse 1.25s ease-in-out infinite;
+}
+.status-dot.online {
+  background: #43e18d;
+  box-shadow: 0 0 0 4px rgba(67,225,141,.09), 0 0 14px rgba(67,225,141,.34);
+}
+.status-dot.offline {
+  background: #ff5460;
+  box-shadow: 0 0 0 4px rgba(255,84,96,.08), 0 0 14px rgba(255,84,96,.25);
+}
+.status-dot.worker-error {
+  background: #ffad32;
+  box-shadow: 0 0 0 4px rgba(255,173,50,.08), 0 0 14px rgba(255,173,50,.25);
+}
+.status-text {
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(255,255,255,.34);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
 .open-icon {
   width: 17px;
   height: 17px;
-  margin-left: 16px;
   flex: 0 0 auto;
   fill: none;
   stroke: rgba(255,255,255,.33);
@@ -254,6 +288,7 @@ footer {
 @keyframes cardIn { to { opacity: 1; transform: none; } }
 @keyframes shimmer { to { background-position: -220% 0; } }
 @keyframes drift { to { transform: translate(6rem, 3rem) scale(1.12); } }
+@keyframes statusPulse { 50% { opacity: .42; transform: scale(.82); } }
 
 @media (max-width: 620px) {
   .shell { width: min(100% - 24px, 920px); }
@@ -265,8 +300,10 @@ footer {
   .search-box button { width: 44px; padding: 0; justify-content: center; }
   .search-box button span { display: none; }
   .results-head { align-items: center; }
-  .result-card { min-height: 60px; padding-inline: 17px; }
+  .result-card { min-height: 60px; padding-inline: 17px; gap: 10px; }
   .domain-name { font-size: 13px; }
+  .status-text { display: none; }
+  .result-side { gap: 8px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
